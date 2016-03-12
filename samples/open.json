@@ -1,0 +1,15 @@
+{
+  "type": "action",
+  "payload": {
+    "identifier": "HAND_FINGERS",
+    "data": {
+      "fingers": [
+        {"position": 0, "speed": 1},
+        {"position": 0, "speed": 1},
+        {"position": 0, "speed": 1},
+        {"position": 0, "speed": 1},
+        {"position": 0, "speed": 1},
+      ]
+    }
+  }
+}

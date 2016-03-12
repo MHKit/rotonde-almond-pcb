@@ -15,12 +15,13 @@ const vid = 0x0403;
  */
 
 const send = (port, data) => {
+  const status = uuid.v1();
   client.sendAction('SERIAL_WRITE', {
     port: port.comName,
-    response: 'TEST',
+    response: status,
     data,
   });
-  client.eventHandlers.attachOnce('TEST', (e) => {
+  client.eventHandlers.attachOnce(status, (e) => {
     console.log(e);
   });
 }
@@ -30,7 +31,7 @@ const startBionicoHand = (status, port) => {
     {
       name: 'fingers',
       type: 'array',
-      units: 'position: 0-100, speed: 0-100',
+      units: 'position: 0-1, speed: 0-1',
     }
   ]);
 
@@ -39,12 +40,10 @@ const startBionicoHand = (status, port) => {
   });
 
   const fingersHandler = (a) => {
-    _.forEach(a.data.fingers, (f, i) => {
-      console.log(f);
-      const cmd = 'F' + i + ' P' + f.position + ' S' + f.speed;
-      console.log(cmd);
-      send(port, cmd);
-    })
+    const cmd = _.reduce(a.data.fingers, (c, f, i) => {
+      return c + ',' + Math.floor(f.position*10000)/10000 + ',' + Math.floor(f.speed*10000)/10000;
+    }, '0');
+    send(port, cmd + ';');
   };
   client.actionHandlers.attach('HAND_FINGERS', fingersHandler);
 }
@@ -53,14 +52,10 @@ const processPort = (port) => {
   if (port.productId != pid || port.vendorId != vid) {
     return;
   }
-  console.log('found bionicos hand ', port);
 
   const handler = (e) => {
     if (_.isEqual(port, e.data)) {
-      console.log('lost this bionico hand ', e.data);
       client.eventHandlers.detach('SERIAL_PORT_LOST', handler);
-    } else {
-      console.log(port, e.data);
     }
   };
   client.eventHandlers.attach('SERIAL_PORT_LOST', handler);
@@ -69,24 +64,30 @@ const processPort = (port) => {
   const status = 'BIONICOHAND_OPEN_'+uuid.v1();
   client.sendAction('SERIAL_OPEN', {
     port: port.comName,
-    baud: 38400,
+    baud: 115200,
     parser: 'READLINE',
-    separator: '\t\r\n',
+    separator: '\r\n',
     response: status,
   });
   client.eventHandlers.attachOnce(status, (e) => {
     console.log(e);
-    if (e.data.status == 'OK') {
-      client.sendEvent('BIONICOHAND_FOUND', {
-        port,
-        index: 0,
+    if (e.data.status != 'OK') {
+      if (e.data.status == 'ALREADY_OPENNED') {
+        client.sendAction('SERIAL_CLOSE', {
+          port: port.comName
+        });
+        process.exit(1);
+      }
+      client.sendEvent('BIONICOHAND_ERROR', {
+        port
       });
-      startBionicoHand(status, port);
-      return;
+      process.exit(1);
     }
-    client.sendEvent('BIONICOHAND_ERROR', {
-      port
+    client.sendEvent('BIONICOHAND_FOUND', {
+      port,
+      index: 0,
     });
+    startBionicoHand(status, port);
   });
 }
 
@@ -97,6 +98,13 @@ client.onReady(() => {
 
     client.eventHandlers.attach('SERIAL_PORT_DISCOVERED', (e) => {
       processPort(e.data);
+    });
+
+    client.unDefinitionHandlers.attach('*', (d) => {
+      if (_.includes(['SERIAL_PORTS_AVAILABLE', 'SERIAL_PORT_DISCOVERED', 'SERIAL_PORT_LOST'], d.identifier)) {
+        console.log('Lost serial module, exiting.');
+        process.exit(1);
+      }
     });
 
   }, (err) => {

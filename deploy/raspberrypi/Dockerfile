@@ -1,8 +1,8 @@
 FROM resin/raspberrypi-node:latest
 
-RUN sudo apt-get update && \
-    sudo apt-get -y upgrade && \
-    sudo apt-get install unzip
+RUN apt-get update && \
+    apt-get -y upgrade && \
+    apt-get install unzip
 
 ADD https://github.com/MHKit/rotonde-bionicohand/archive/master.zip /tmp
 RUN unzip /tmp/master.zip -d /usr/local/ && mv /usr/local/rotonde-bionicohand-master /usr/local/rotonde-bionicohand
